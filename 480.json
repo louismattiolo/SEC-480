@@ -1,0 +1,9 @@
+{
+   "vcenter_server" : "vcenter.louis.local",
+   "vm_folder" : "BASEVM",
+   "esxi_host"      : "192.168.3.220",
+   "datastore"      : "datastore2",
+   "snapshot_name"  : "Base"
+
+}
+
