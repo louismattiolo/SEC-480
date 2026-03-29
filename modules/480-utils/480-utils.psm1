@@ -23,6 +23,8 @@ Function 480Connect([string] $server)
 
 
 
+
+
 # reads JSON config file and returns it as an object
 Function Get-480Config([string] $config_path)
 {
@@ -162,4 +164,44 @@ Function New-FullClone([object] $vm, [object] $snapshot, [string] $clone_name, [
         Write-Host -ForegroundColor Yellow "Cleaning up temporary linked clone '$temp_name'..."
         Remove-VM -VM $temp_clone -DeletePermanently -Confirm:$false
     }
+}
+
+
+Function Get-IP([object] $vm, [string] $vcenter_server)
+{
+    480Connect -server $vcenter_server
+
+    if (-not $vm)
+    {
+        Write-Host -ForegroundColor Red "No VM object provided."
+        return $null
+    }
+
+    $adapter = Get-NetworkAdapter -VM $vm | Select-Object -First 1
+
+    if (-not $adapter)
+    {
+        Write-Host -ForegroundColor Red "No network adapters found on VM '$($vm.name)'."
+        return $null
+    }
+
+    $ip = $vm.guest.ipaddress[0]
+
+    if (-not $ip)
+    {
+        Write-Host -ForegroundColor Yellow "No IP found. Is VMware Tools running on '$($vm.name)'?"
+        return $null
+    }
+
+    $result = [PSCustomObject]@{
+        Hostname   = $vm.name
+        IPAddress  = $ip
+        MACAddress = $adapter.MacAddress
+    }
+
+    Write-Host -ForegroundColor Green "hostname = $($result.Hostname)"
+    Write-Host -ForegroundColor Green "ip       = $($result.IPAddress)"
+    Write-Host -ForegroundColor Green "mac      = $($result.MACAddress)"
+
+    return $result
 }

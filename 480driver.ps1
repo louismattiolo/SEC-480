@@ -1,4 +1,4 @@
-Import-Module '480-utils' -Force 
+Import-Module '/home/louis/SEC-480/modules/480-utils/480-utils.psm1' -Force
 # call the banner function 
 480Banner
 
@@ -15,7 +15,7 @@ if (-not $vm) {
     exit
 }
 
-
+<# 
 # prompt for snapshot 
 $snapshot = Select-Snapshot -vm $vm
 
@@ -37,3 +37,6 @@ if ($clone_type -eq "linked") {
 } else {
     Write-Host -ForegroundColor Red "Invalid clone type '$clone_type'. Enter 'linked' or 'full'."
 }
+ #>
+# test Get-IP
+Get-IP -vm $vm -vcenter_server $conf.vcenter_server
