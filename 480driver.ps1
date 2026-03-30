@@ -42,7 +42,7 @@ if ($clone_type -eq "linked") {
 
 
 # test Get-IP
-#Get-IP 
+Get-IP 
 
 #create new network test
 #New-Network -esxi_host $conf.esxi_host
@@ -60,4 +60,4 @@ if ($clone_type -eq "linked") {
 
 
 # Set network adapter on a VM
-Set-Network
+#Set-Network
