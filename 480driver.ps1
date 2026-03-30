@@ -6,7 +6,7 @@ $conf =  Get-480Config  -config_path "/home/louis/SEC-480/480.json"
 480Connect -server $conf.vcenter_server
 Write-Host "Selecting your VM"
 
-
+<# 
 # prompt for vm
 $vm = Select-VM -folder $conf.vm_folder
 
@@ -14,6 +14,7 @@ if (-not $vm) {
     Write-Host -ForegroundColor Red "No VM selected. Exiting."
     exit
 }
+ #>
 
 <# 
 # prompt for snapshot 
@@ -38,5 +39,25 @@ if ($clone_type -eq "linked") {
     Write-Host -ForegroundColor Red "Invalid clone type '$clone_type'. Enter 'linked' or 'full'."
 }
  #>
+
+
 # test Get-IP
-Get-IP -vm $vm -vcenter_server $conf.vcenter_server
+#Get-IP 
+
+#create new network test
+#New-Network -esxi_host $conf.esxi_host
+
+# blueX-fw linked clone (select vyos base VM and snapshot when prompted)
+#$vm   = Select-VM -folder $conf.vm_folder
+#$snap = Select-Snapshot -vm $vm
+#New-LinkedClone -vm $vm -snapshot $snap -clone_name "blue20-fw" -esxi_host $conf.esxi_host -datastore $conf.datastore
+
+
+# Start / Stop a VM
+#StartaVM
+#StoppaVM
+
+
+
+# Set network adapter on a VM
+Set-Network

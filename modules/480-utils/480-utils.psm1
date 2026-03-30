@@ -167,41 +167,106 @@ Function New-FullClone([object] $vm, [object] $snapshot, [string] $clone_name, [
 }
 
 
-Function Get-IP([object] $vm, [string] $vcenter_server)
+# get-IP lists all VMs and lets you pick one, then shows its IP and MAC address
+Function Get-IP()
 {
-    480Connect -server $vcenter_server
-
-    if (-not $vm)
+    $vms = Get-VM
+    $index = 1
+    foreach($i in $vms)
     {
-        Write-Host -ForegroundColor Red "No VM object provided."
-        return $null
+        Write-Host [$index] $i.Name
+        $index += 1
     }
+    $pick   = Read-Host "What VM do you want to get the IP for? Enter the index number [x]"
+    $picked = $vms[$pick - 1]
+    Write-Host "Selected VM: " $picked.Name
+ 
+    $mac = Get-NetworkAdapter -VM $picked | Select-Object -First 1
+    $ip  = $picked.guest.ipaddress[0]
+ 
+    Write-Host "hostname = " $picked.Name
+    Write-Host "ip       = " $ip
+    Write-Host "mac      = " $mac.MacAddress
+}
 
-    $adapter = Get-NetworkAdapter -VM $vm | Select-Object -First 1
 
-    if (-not $adapter)
+# New-Network asks for a name and creates a new vSwitch + port group on the ESXi host
+Function New-Network([string] $esxi_host)
+{
+    $name    = Read-Host "What would you like to call this new network?"
+    $vswitch = New-VirtualSwitch -VMHost $esxi_host -Name $name
+    New-VirtualPortGroup -VirtualSwitch $vswitch -Name $name
+    Write-Host -ForegroundColor Green "Network '$name' created."
+}
+
+
+# StartaVM lists all VMs and lets you pick one to power on
+Function StartaVM()
+{
+    $vms = Get-VM
+    $index = 1
+    foreach($i in $vms)
     {
-        Write-Host -ForegroundColor Red "No network adapters found on VM '$($vm.name)'."
-        return $null
+        Write-Host [$index] $i.Name
+        $index += 1
     }
+    $pick   = Read-Host "What VM do you want to power on? Enter the index number [x]"
+    $turnon = $vms[$pick - 1]
+    Write-Host "Selected VM: " $turnon.Name
+    Start-VM -VM $turnon.Name
+}
 
-    $ip = $vm.guest.ipaddress[0]
-
-    if (-not $ip)
+ 
+# StoppaVM lists all VMs and lets you pick one to power off
+Function StoppaVM()
+{
+    $vms = Get-VM
+    $index = 1
+    foreach($i in $vms)
     {
-        Write-Host -ForegroundColor Yellow "No IP found. Is VMware Tools running on '$($vm.name)'?"
-        return $null
+        Write-Host [$index] $i.Name
+        $index += 1
     }
+    $pick    = Read-Host "What VM do you want to power off? Enter the index number [x]"
+    $turnoff = $vms[$pick - 1]
+    Write-Host "Selected VM: " $turnoff.Name
+    Stop-VM -VM $turnoff.Name
+}
 
-    $result = [PSCustomObject]@{
-        Hostname   = $vm.name
-        IPAddress  = $ip
-        MACAddress = $adapter.MacAddress
+# Set-Network lists VMs, then adapters, then available networks and lets you pick which adapter to connect to which network
+Function Set-Network()
+{
+    $vms = Get-VM
+    $index = 1
+    foreach($i in $vms)
+    {
+        Write-Host [$index] $i.Name
+        $index += 1
     }
-
-    Write-Host -ForegroundColor Green "hostname = $($result.Hostname)"
-    Write-Host -ForegroundColor Green "ip       = $($result.IPAddress)"
-    Write-Host -ForegroundColor Green "mac      = $($result.MACAddress)"
-
-    return $result
+    $pick   = Read-Host "What VM do you want to set the network for? Enter the index number [x]"
+    $picked = $vms[$pick - 1]
+    Write-Host "Selected VM: " $picked.Name
+ 
+    $adapters = Get-NetworkAdapter -VM $picked
+    $index = 1
+    foreach($i in $adapters)
+    {
+        Write-Host "[$index] name: $($i.Name)  network: $($i.NetworkName)  mac: $($i.MacAddress)"
+        $index += 1
+    }
+    $adapterpick = Read-Host "Which network adapter do you want to update?"
+    $adapter     = $adapters[$adapterpick - 1]
+ 
+    $networks = Get-VirtualNetwork
+    $index = 1
+    foreach($i in $networks)
+    {
+        Write-Host [$index] $i.Name
+        $index += 1
+    }
+    $netpick = Read-Host "What network do you want to connect the adapter to? Enter the index number [x]"
+    $net     = $networks[$netpick - 1]
+ 
+    Set-NetworkAdapter -NetworkAdapter $adapter -NetworkName $net.Name -Confirm:$false
+    Write-Host "Updated $($adapter.Name) on $($picked.Name) to $($net.Name)"
 }
