@@ -1,0 +1,24 @@
+---
+- hosts: vyos
+  become: true
+  gather_facts: false
+  vars_prompt:
+    - name: vyos_password
+      prompt: "Enter new VyOS password"
+      private: true
+
+  tasks:
+    - name: Hash the password
+      set_fact:
+        password_hash: "{{ vyos_password | password_hash('sha512') }}"
+
+    - name: Deploy config.boot from template
+      template:
+        src: config.boot.j2
+        dest: /config/config.boot
+
+    - name: Reboot the VyOS box
+      shell: nohup bash -c "sleep 2 && reboot" &
+      async: 0
+      poll: 0
+      ignore_errors: true
