@@ -11,7 +11,7 @@ all:
   vars:
     dhcp_network: "10.0.5.0/24"
     dhcp_router:  "10.0.5.2"
-    dhcp_dns:     "10.0.5.5"
+    dhcp_dns:     "8.8.8.8"
     dhcp_domain:  "blue20.local"
     dhcp_lease:   "86400"
     dhcp_start:   "10.0.5.75"

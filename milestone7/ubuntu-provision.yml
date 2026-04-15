@@ -1,0 +1,33 @@
+---
+- name: Post Provision Ubuntu VMs
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Add deployer public key for rangeuser
+      ansible.builtin.authorized_key:
+        user: rangeuser
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+
+    - name: Create sudoers drop-in for rangeuser
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/rangeuser
+        content: "rangeuser ALL=(ALL) NOPASSWD: ALL\n"
+        mode: '0440'
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ new_hostname }}"
+
+    - name: Write netplan static IP config
+      ansible.builtin.template:
+        src: netplan.j2
+        dest: /etc/netplan/00-installer-config.yaml
+        mode: '0600'
+
+    - name: Apply netplan config
+      ansible.builtin.command: netplan apply
+      async: 10
+      poll: 0
