@@ -1,0 +1,28 @@
+---
+- name: Configure DHCP on fw-blue20
+  hosts: fw-blue20
+  gather_facts: false
+
+  tasks:
+    - name: Configure DHCP server
+      vyos.vyos.vyos_config:
+        lines:
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} authoritative"
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} subnet {{ dhcp_network }} default-router {{ dhcp_router }}"
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} subnet {{ dhcp_network }} domain-name {{ dhcp_domain }}"
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} subnet {{ dhcp_network }} lease {{ dhcp_lease }}"
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} subnet {{ dhcp_network }} name-server {{ dhcp_dns }}"
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} subnet {{ dhcp_network }} range {{ dhcp_name }}--POOL start {{ dhcp_start }}"
+          - "set service dhcp-server shared-network-name {{ dhcp_name }} subnet {{ dhcp_network }} range {{ dhcp_name }}--POOL stop {{ dhcp_stop }}"
+        match: none
+        save: true
+
+    - name: Verify DHCP configuration
+      vyos.vyos.vyos_command:
+        commands:
+          - show dhcp server leases
+      register: dhcp_verify
+
+    - name: Print DHCP config output
+      debug:
+        var: dhcp_verify.stdout_lines
