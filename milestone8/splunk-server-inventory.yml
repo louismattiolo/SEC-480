@@ -1,0 +1,16 @@
+all:
+  hosts:
+    splunk-server:
+      ansible_host: 10.0.5.40   # <-- Replace with DHCP address for provisioning, then 10.0.5.40 after
+      static_ip: 10.0.5.40
+      new_hostname: splunk-server
+  vars:
+    ansible_user: rangeuser
+    ansible_password: "password21!"
+    ansible_become: true
+    ansible_become_password: "password21!"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=no vyos@10.0.17.200"'
+    gateway: "10.0.5.2"
+    dns_server: "8.8.8.8"
+    subnet_prefix: "24"
+    network_interface: "ens34"

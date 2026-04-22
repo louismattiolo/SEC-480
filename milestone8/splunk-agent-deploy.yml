@@ -1,0 +1,107 @@
+---
+# ============================================================
+# Milestone 8 - Splunk Universal Forwarder Deployment
+# ============================================================
+# Installs the forwarder on an existing BLUE-LAN Ubuntu VM
+# and configures it to send logs to the Splunk Enterprise server.
+# Usage:
+#   ansible-playbook -i splunk-agent-inventory.yml splunk-agent-deploy.yml
+# ============================================================
+
+- name: Deploy Splunk Universal Forwarder
+  hosts: all
+  gather_facts: true
+
+  vars:
+    splunk_fwd_deb_url: "https://download.splunk.com/products/universalforwarder/releases/9.4.1/linux/splunkforwarder-9.4.1-e3bdab203ac8-linux-amd64.deb"
+    splunk_fwd_deb_file: "/tmp/splunkforwarder-9.4.1-linux-amd64.deb"
+    splunk_fwd_home: "/opt/splunkforwarder"
+    splunk_fwd_admin_password: "Password123!"   # Local forwarder admin password
+
+  tasks:
+    # ----------------------------------------------------------
+    # 1. Download Universal Forwarder .deb
+    # ----------------------------------------------------------
+    - name: Download Splunk Universal Forwarder
+      ansible.builtin.get_url:
+        url: "{{ splunk_fwd_deb_url }}"
+        dest: "{{ splunk_fwd_deb_file }}"
+        mode: '0644'
+        timeout: 300
+
+    # ----------------------------------------------------------
+    # 2. Install the .deb package
+    # ----------------------------------------------------------
+    - name: Install Splunk Universal Forwarder
+      ansible.builtin.apt:
+        deb: "{{ splunk_fwd_deb_file }}"
+        state: present
+
+    # ----------------------------------------------------------
+    # 3. Create outputs.conf - point forwarder to Splunk server
+    # ----------------------------------------------------------
+    - name: Configure outputs.conf (forward to Splunk server)
+      ansible.builtin.copy:
+        dest: "{{ splunk_fwd_home }}/etc/system/local/outputs.conf"
+        content: |
+          [tcpout]
+          defaultGroup = splunk-server
+
+          [tcpout:splunk-server]
+          server = {{ splunk_server_ip }}:{{ splunk_receive_port }}
+        owner: root
+        group: root
+        mode: '0644'
+
+    # ----------------------------------------------------------
+    # 4. Create inputs.conf - monitor key Linux log files
+    # ----------------------------------------------------------
+    - name: Configure inputs.conf (monitor system logs)
+      ansible.builtin.copy:
+        dest: "{{ splunk_fwd_home }}/etc/system/local/inputs.conf"
+        content: |
+          [monitor:///var/log/syslog]
+          index = main
+          sourcetype = syslog
+
+          [monitor:///var/log/auth.log]
+          index = main
+          sourcetype = linux_secure
+
+          [monitor:///var/log/kern.log]
+          index = main
+          sourcetype = syslog
+        owner: root
+        group: root
+        mode: '0644'
+
+    # ----------------------------------------------------------
+    # 5. First-time start with license acceptance
+    # ----------------------------------------------------------
+    - name: Start Universal Forwarder for the first time
+      ansible.builtin.command:
+        cmd: "{{ splunk_fwd_home }}/bin/splunk start --accept-license --answer-yes --seed-passwd {{ splunk_fwd_admin_password }} --no-prompt"
+        creates: "{{ splunk_fwd_home }}/var/run/splunk/splunkd.pid"
+
+    # ----------------------------------------------------------
+    # 6. Enable boot-start
+    # ----------------------------------------------------------
+    - name: Enable forwarder boot-start
+      ansible.builtin.command:
+        cmd: "{{ splunk_fwd_home }}/bin/splunk enable boot-start -systemd-managed 1 -user root --accept-license --answer-yes --no-prompt"
+      register: boot_start_result
+      changed_when: "'Init script installed' in boot_start_result.stdout or 'Systemd unit file' in boot_start_result.stdout"
+
+    # ----------------------------------------------------------
+    # 7. Verify forwarder is running
+    # ----------------------------------------------------------
+    - name: Verify forwarder status
+      ansible.builtin.command:
+        cmd: "{{ splunk_fwd_home }}/bin/splunk status"
+      register: fwd_status
+      changed_when: false
+      failed_when: "'splunkd is not running' in fwd_status.stdout"
+
+    - name: Display forwarder status
+      ansible.builtin.debug:
+        msg: "Universal Forwarder is running and forwarding to {{ splunk_server_ip }}:{{ splunk_receive_port }}"

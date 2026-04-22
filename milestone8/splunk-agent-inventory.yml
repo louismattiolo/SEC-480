@@ -1,0 +1,10 @@
+all:
+  hosts:
+    ubuntu-1:
+      ansible_host: 10.0.5.30
+  vars:
+    ansible_user: rangeuser
+    ansible_become: true
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=no vyos@10.0.17.200"'
+    splunk_server_ip: "10.0.5.40"
+    splunk_receive_port: 9997

@@ -1,0 +1,97 @@
+---
+# ============================================================
+# Milestone 8 - Splunk Enterprise Server Deployment
+# ============================================================
+# Run AFTER the VM has been provisioned with a static IP.
+# Usage:
+#   ansible-playbook -i splunk-server-inventory.yml splunk-server-deploy.yml
+# ============================================================
+
+- name: Deploy Splunk Enterprise Server
+  hosts: all
+  gather_facts: true
+
+  vars:
+    splunk_deb_url: "https://download.splunk.com/products/splunk/releases/9.4.1/linux/splunk-9.4.1-e3bdab203ac8-linux-amd64.deb"
+    splunk_deb_file: "/tmp/splunk-9.4.1-linux-amd64.deb"
+    splunk_home: "/opt/splunk"
+    splunk_admin_password: "Password123!"   # Change to your preferred password
+    splunk_receive_port: 9997
+
+  tasks:
+    # ----------------------------------------------------------
+    # 1. Download Splunk Enterprise .deb
+    # ----------------------------------------------------------
+    - name: Download Splunk Enterprise deb package
+      ansible.builtin.get_url:
+        url: "{{ splunk_deb_url }}"
+        dest: "{{ splunk_deb_file }}"
+        mode: '0644'
+        timeout: 300
+
+    # ----------------------------------------------------------
+    # 2. Install the .deb package
+    # ----------------------------------------------------------
+    - name: Install Splunk Enterprise
+      ansible.builtin.apt:
+        deb: "{{ splunk_deb_file }}"
+        state: present
+
+    # ----------------------------------------------------------
+    # 3. First-time start with license acceptance + admin seed
+    # ----------------------------------------------------------
+    - name: Start Splunk for the first time (accept license, seed admin password)
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk start --accept-license --answer-yes --seed-passwd {{ splunk_admin_password }} --no-prompt"
+        creates: "{{ splunk_home }}/var/run/splunk/splunkd.pid"
+
+    # ----------------------------------------------------------
+    # 4. Stop Splunk before enabling boot-start
+    # ----------------------------------------------------------
+    - name: Stop Splunk before enabling boot-start
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk stop"
+
+    # ----------------------------------------------------------
+    # 5. Enable Splunk to start at boot
+    # ----------------------------------------------------------
+    - name: Enable Splunk boot-start
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk enable boot-start -systemd-managed 1 -user root --accept-license --answer-yes --no-prompt"
+      register: boot_start_result
+      changed_when: "'Init script installed' in boot_start_result.stdout or 'Systemd unit file' in boot_start_result.stdout"
+      failed_when: "boot_start_result.rc != 0 and 'already exists' not in boot_start_result.stderr"
+
+    # ----------------------------------------------------------
+    # 5. Start Splunk after enabling boot-start
+    # ----------------------------------------------------------
+    - name: Start Splunk
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk start --accept-license --answer-yes --no-prompt"
+
+    # ----------------------------------------------------------
+    # 6. Enable receiving on port 9997 for forwarder data
+    # ----------------------------------------------------------
+    - name: Enable receiving on port {{ splunk_receive_port }}
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk enable listen {{ splunk_receive_port }} -auth admin:{{ splunk_admin_password }}"
+      register: listen_result
+      changed_when: "'Listening for Splunk data on TCP port' in listen_result.stdout"
+      failed_when: "listen_result.rc != 0 and 'already exists' not in listen_result.stderr"
+
+    # ----------------------------------------------------------
+    # 6. Ensure Splunk is running
+    # ----------------------------------------------------------
+    - name: Ensure Splunk is running
+      ansible.builtin.command:
+        cmd: "{{ splunk_home }}/bin/splunk status"
+      register: splunk_status
+      changed_when: false
+      failed_when: "'splunkd is not running' in splunk_status.stdout"
+
+    # ----------------------------------------------------------
+    # 7. Print access info
+    # ----------------------------------------------------------
+    - name: Display Splunk Web URL
+      ansible.builtin.debug:
+        msg: "Splunk Web is available at http://{{ static_ip }}:8000  (admin / {{ splunk_admin_password }})"
