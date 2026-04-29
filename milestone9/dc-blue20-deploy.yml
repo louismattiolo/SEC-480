@@ -1,0 +1,123 @@
+---
+- name: Deploy Active Directory Domain Services on dc-blue20
+  hosts: servers
+  gather_facts: false
+  vars_prompt:
+    - name: connection_password
+      prompt: "Enter the CURRENT Administrator password (for WinRM connection)"
+      private: true
+    - name: admin_password
+      prompt: "Enter the NEW Administrator password to set"
+      private: true
+
+  tasks:
+    # -------------------------------------------------------
+    # 1. Set local Administrator password
+    # -------------------------------------------------------
+    - name: Set local Administrator password
+      ansible.windows.win_user:
+        name: Administrator
+        password: "{{ admin_password }}"
+        state: present
+
+    # -------------------------------------------------------
+    # 2. Set hostname
+    # -------------------------------------------------------
+    - name: Set hostname to dc-blue20
+      ansible.windows.win_hostname:
+        name: dc-blue20
+      register: hostname_change
+
+    - name: Reboot after hostname change
+      ansible.windows.win_reboot:
+        reboot_timeout: 600
+      when: hostname_change.reboot_required
+
+    # -------------------------------------------------------
+    # 3. Install AD DS role and promote to Domain Controller
+    # -------------------------------------------------------
+    - name: Install AD DS Windows Feature
+      ansible.windows.win_feature:
+        name: AD-Domain-Services
+        include_management_tools: true
+        state: present
+
+    - name: Create new AD Forest (BLUE20.local)
+      microsoft.ad.domain:
+        dns_domain_name: BLUE20.local
+        safe_mode_password: "{{ admin_password }}"
+        domain_netbios_name: BLUE20
+        create_dns_delegation: false
+        reboot: true
+        reboot_timeout: 1200
+
+    # Wait for DNS service to come up after promotion before continuing.
+    - name: Wait for DNS service to be running
+      ansible.windows.win_shell: |
+        $svc = Get-Service -Name DNS -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq 'Running') { exit 0 } else { exit 1 }
+      register: dns_check
+      retries: 30
+      delay: 10
+      until: dns_check.rc == 0
+      changed_when: false
+
+    # -------------------------------------------------------
+    # 4. Add DNS forwarder
+    # -------------------------------------------------------
+    - name: Add DNS forwarder to 8.8.8.8
+      ansible.windows.win_shell: |
+        $existing = Get-DnsServerForwarder | Select-Object -ExpandProperty IPAddress
+        if ($existing -notcontains "8.8.8.8") {
+          Add-DnsServerForwarder -IPAddress 8.8.8.8
+          Write-Output "Added 8.8.8.8"
+        } else {
+          Write-Output "Already exists"
+        }
+      register: dns_forwarder
+      changed_when: "'Added' in dns_forwarder.stdout"
+
+    # -------------------------------------------------------
+    # 5. Create OU structure
+    # -------------------------------------------------------
+    - name: Create BLUE20 base OU
+      microsoft.ad.ou:
+        name: BLUE20
+        path: DC=BLUE20,DC=LOCAL
+        protect_from_deletion: false
+        state: present
+
+    - name: Create Accounts OU
+      microsoft.ad.ou:
+        name: Accounts
+        path: OU=BLUE20,DC=BLUE20,DC=LOCAL
+        protect_from_deletion: false
+        state: present
+
+    - name: Create Groups OU
+      microsoft.ad.ou:
+        name: Groups
+        path: OU=BLUE20,DC=BLUE20,DC=LOCAL
+        protect_from_deletion: false
+        state: present
+
+    - name: Create Computers OU
+      microsoft.ad.ou:
+        name: Computers
+        path: OU=BLUE20,DC=BLUE20,DC=LOCAL
+        protect_from_deletion: false
+        state: present
+
+    - name: Create Servers OU
+      microsoft.ad.ou:
+        name: Servers
+        path: OU=Computers,OU=BLUE20,DC=BLUE20,DC=LOCAL
+        protect_from_deletion: false
+        state: present
+
+    - name: Create Workstations OU
+      microsoft.ad.ou:
+        name: Workstations
+        path: OU=Computers,OU=BLUE20,DC=BLUE20,DC=LOCAL
+        protect_from_deletion: false
+        state: present

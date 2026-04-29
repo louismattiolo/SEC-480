@@ -286,3 +286,28 @@ Function Set-Network()
     Set-NetworkAdapter -NetworkAdapter $adapter -NetworkName $net.Name -Confirm:$false
     Write-Host "Updated $($adapter.Name) on $($picked.Name) to $($net.Name)"
 }
+# Set-WindowsIP - sets a static IP on a Windows guest VM using Invoke-VMScript + netsh
+Function Set-WindowsIP([object] $VM, [string] $GuestUser, [SecureString] $GuestPassword, [string] $StaticIP, [string] $Netmask = "255.255.255.0", [string] $Gateway, [string] $DNS, [string] $InterfaceName = "Ethernet0")
+{
+    if (-not $VM)            { Write-Host -ForegroundColor Red "VM object is required."; return }
+    if (-not $GuestUser)     { $GuestUser     = Read-Host "Guest username (e.g. Administrator)" }
+    if (-not $GuestPassword) { $GuestPassword = Read-Host "Guest password" -AsSecureString }
+    if (-not $StaticIP)      { $StaticIP      = Read-Host "Static IP (e.g. 10.0.5.5)" }
+    if (-not $Gateway)       { $Gateway       = Read-Host "Gateway (e.g. 10.0.5.2)" }
+    if (-not $DNS)           { $DNS           = Read-Host "DNS server (e.g. 8.8.8.8)" }
+
+    $plainPass = [System.Net.NetworkCredential]::new("", $GuestPassword).Password
+
+    $scriptText = @"
+netsh interface ip set address name="$InterfaceName" static $StaticIP $Netmask $Gateway
+netsh interface ip set dns     name="$InterfaceName" static $DNS
+ipconfig /all
+"@
+
+    Write-Host -ForegroundColor Yellow "Setting static IP $StaticIP on $($VM.Name) (interface: $InterfaceName)..."
+
+    $result = Invoke-VMScript -VM $VM -ScriptText $scriptText -GuestUser $GuestUser -GuestPassword $plainPass -ScriptType Bat
+
+    Write-Host $result.ScriptOutput
+    Write-Host -ForegroundColor Green "Static IP configured on $($VM.Name)."
+}   

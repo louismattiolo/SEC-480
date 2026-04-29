@@ -1,0 +1,13 @@
+all:
+  children:
+    servers:
+      hosts:
+        dc-blue20:
+          ansible_host: 10.0.5.5
+  vars:
+    ansible_user: Administrator
+    ansible_password: "{{ connection_password }}"
+    ansible_connection: winrm
+    ansible_winrm_transport: basic
+    ansible_winrm_server_cert_validation: ignore
+    ansible_port: 5985
